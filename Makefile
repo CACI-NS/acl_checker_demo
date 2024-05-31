@@ -27,7 +27,7 @@ add-venv: ## Install virtualenv, create virtualenv, install requirements
 .PHONY: batfish-test
 batfish-test: ## Execute batfish testing
 	. ./venv/bin/activate
-	python batfish/validate_acls.py
+	python validate_acls.py
 
 .PHONY: remove-venv
 remove-venv: ## Remove virtualenv
