@@ -1,0 +1,39 @@
+!
+no ip domain lookup
+ip domain name caci.co.uk
+!
+hostname R2
+!
+no aaa new-model
+!
+username cisco privilege 15 password 0 cisco
+!
+line vty 0 4
+ privilege level 15
+ login local
+ transport input ssh
+!
+ip domain-name caci.co.uk
+!
+ntp server 1.1.1.1
+ntp server 1.0.0.1
+!
+interface GigabitEthernet0/0
+ ip address 192.168.3.102 255.255.255.0
+ ip access-group SERVERS_IN in
+ no shutdown
+interface GigabitEthernet0/1
+ ip address 10.0.12.2 255.255.255.0
+ no shutdown
+exit
+!
+ip route 0.0.0.0 0.0.0.0 192.168.3.1
+!
+router ospf 1
+ router-id 2.2.2.2
+ network 10.0.12.0 0.0.0.255 area 0
+!
+ip access-list extended SERVERS_IN
+ permit udp 192.168.0.0 0.0.0.255 host 10.0.0.1 eq 53
+ deny ip any any
+!
