@@ -1,9 +1,8 @@
 import json
 import logging
-import os
 import re
 import sys
-from typing import List, Set
+from typing import List
 from pybatfish.client import asserts
 from pybatfish.client.commands import bf_session as bf
 from pybatfish.datamodel.flow import HeaderConstraints
@@ -29,54 +28,6 @@ def setup() -> None:
     bf.init_snapshot(SNAPSHOT_DIR, name=SNAP_SHOT_NAME, overwrite=True)
 
 
-def extract_acl_from_device_config(file_path: str) -> Set[str]:
-    """
-    Extract ACL names from a device configuration file.
-
-    Args:
-        file_path: The path to the device configuration file.
-
-    Returns:
-        A set of ACL names extracted from the file.
-    """
-    acl_names = set()
-    acl_pattern = re.compile(r'ip access-list \w+ (\S+)')
-    try:
-        with open(file_path, 'r') as file:
-            for line in file:
-                match = acl_pattern.match(line)
-                if match:
-                    acl_names.add(match.group(1))
-    except FileNotFoundError:
-        logger.error(f"Configuration file {file_path} not found.")
-    except Exception as e:
-        logger.error(f"Error reading file {file_path}: {e}")
-    
-    return acl_names
-
-
-def extract_device_config_files_from_directory(directory_path: str) -> List[str]:
-    """
-    Extract ACL names from all device configuration files in a directory.
-
-    Args:
-        directory_path: The path to the directory containing the device configuration files.
-
-    Returns:
-        A list of all ACL names extracted from the directory.
-    """
-    all_acl_names = set()
-    
-    for root, dirs, files in os.walk(directory_path):
-        for file in files:
-            if file.endswith('.txt') or file.endswith('.cfg'):
-                file_path = os.path.join(root, file)
-                acl_names = extract_acl_from_device_config(file_path)
-                all_acl_names.update(acl_names)
-    
-    return list(all_acl_names)
-
-
 def check_acl_unreachable_lines(acl_name: str) -> None:
     """
     Check if an ACL has any unreachable lines.
@@ -99,7 +50,7 @@ def check_acl_unreachable_lines(acl_name: str) -> None:
         sys.exit(1)
 
 
-def check_acl_permits_source_ip(acl_name: str, ip_protocols: List[str], src_ip: str, dst_ip: str, dst_port: int) -> None:
+def check_acl_permits_flow(acl_name: str, ip_protocols: List[str], src_ip: str, dst_ip: str, dst_port: int) -> None:
     """
     Check if an ACL permits a specific source IP.
 
@@ -149,12 +100,14 @@ def load_configuration(config_file: str) -> dict:
 
 
 if __name__ == "__main__":
-    setup()
-    acl_names = extract_device_config_files_from_directory(HOST_VARS_DIR)
-    fw_checks = load_configuration(FW_CHECKS)
-    
+    setup() # Set up the Batfish session and initialize the snapshot.
+
+    acl_names = set(bf.q.searchFilters().answer().frame().Filter_Name.tolist()) # Get the list of ACL names from the snapshot.
+
+    custom_fw_checks = load_configuration(FW_CHECKS) # Load the firewall checks from the configuration file.
+
     for acl_name in acl_names:
         check_acl_unreachable_lines(acl_name)
-        for check in fw_checks:
+        for check in custom_fw_checks:
             if re.match(check['acl_name_regex'], acl_name):
-                check_acl_permits_source_ip(acl_name, check['ip_protocols'], check['src_ip'], check['dst_ip'], check['dst_port'])
+                check_acl_permits_flow(acl_name, check['ip_protocols'], check['src_ip'], check['dst_ip'], check['dst_port'])
